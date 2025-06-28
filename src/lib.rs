@@ -7,7 +7,7 @@ mod audio;
 mod chroma;
 mod errors;
 mod harmonic_analyzer;
-mod types;
+pub mod types;
 
 pub fn analyze_key(file_path: &str) -> Option<Key> {
     println!("Analyzing file: {}", file_path);
