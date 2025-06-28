@@ -1,0 +1,11 @@
+[package]
+name = "musickeyfinder"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.40", features = ["derive"] }
+rustfft = "6.4.0"
+realfft = "3.5.0"
+symphonia = {version="0.5.4", features=["mpa", "all-codecs"]}
+
