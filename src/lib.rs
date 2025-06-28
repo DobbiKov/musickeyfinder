@@ -21,7 +21,6 @@ pub fn analyze_key(file_path: &str) -> String {
         sample_rate
     );
 
-    // --- AUTOMATIC TUNING DETECTION ---
     let mut best_key = "Unknown".to_string();
     let mut best_score = -1.0;
     let mut best_tuning_hz = 440.0;

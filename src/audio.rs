@@ -1,4 +1,5 @@
 //! Audio decoding module
+//!
 use super::*;
 use symphonia::core::audio::{AudioBufferRef, SampleBuffer, Signal};
 use symphonia::core::codecs::DecoderOptions;
@@ -8,6 +9,7 @@ use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
 
+/// Reads a file returns its buffer and a sample_rate
 pub fn load_audio_file(path: &str) -> Result<(Vec<f32>, u32), Box<dyn Error>> {
     let src = std::fs::File::open(path)?;
     let mss = MediaSourceStream::new(Box::new(src), Default::default());
@@ -56,7 +58,7 @@ fn to_mono_f32<'a>(
     sample_buf: &'a mut Option<SampleBuffer<f32>>,
 ) -> Vec<f32> {
     if sample_buf.is_none() {
-        let spec = *buffer.spec();
+        let spec = *(buffer.spec());
         let duration = buffer.capacity() as u64;
         let buf = SampleBuffer::<f32>::new(duration, spec);
         *sample_buf = Some(buf);
