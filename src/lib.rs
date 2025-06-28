@@ -1,11 +1,15 @@
 use std::env;
 use std::error::Error;
 
+use types::Key;
+
 mod audio;
 mod chroma;
+mod errors;
 mod harmonic_analyzer;
+mod types;
 
-pub fn analyze_key(file_path: &str) -> String {
+pub fn analyze_key(file_path: &str) -> Option<Key> {
     println!("Analyzing file: {}", file_path);
 
     let (audio_buffer, sample_rate) = match audio::load_audio_file(file_path) {
@@ -21,7 +25,7 @@ pub fn analyze_key(file_path: &str) -> String {
         sample_rate
     );
 
-    let mut best_key = "Unknown".to_string();
+    let mut best_key: Option<Key> = None;
     let mut best_score = -1.0;
     let mut best_tuning_hz = 440.0;
 
@@ -38,10 +42,14 @@ pub fn analyze_key(file_path: &str) -> String {
         }
 
         let (key, score) = harmonic_analyzer::analyze_track(&chroma_sequence);
+        let key_str = match key {
+            None => "unknown".to_string(),
+            Some(k) => String::from(k),
+        };
 
         print!(
             "    - Testing A4={:.1} Hz... found {} (score: {:.2})\r",
-            a4_freq, key, score
+            a4_freq, key_str, score
         );
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
@@ -52,10 +60,18 @@ pub fn analyze_key(file_path: &str) -> String {
         }
     }
 
+    if best_key.is_none() {
+        println!("\n\n===================================");
+        println!("Analysis Complete!");
+        println!("The key is unknown");
+        println!("===================================");
+        return None;
+    }
+
     println!("\n\n===================================");
     println!("Analysis Complete!");
     println!("Detected Tuning: A4 = {:.1} Hz", best_tuning_hz);
-    println!("Estimated Key: {}", best_key);
+    println!("Estimated Key: {}", best_key.unwrap());
     println!("===================================");
     best_key
 }

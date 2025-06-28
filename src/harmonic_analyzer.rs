@@ -1,5 +1,7 @@
 //! Harmonic transition analyzer module
 //!
+
+use crate::types::{key_to_camelot, Key};
 const MAJOR_PROFILE: [f64; 12] = [
     6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88,
 ];
@@ -39,9 +41,9 @@ fn get_best_frame_key(chroma: &[f64]) -> usize {
 }
 
 /// Returns the best key AND the confidence score for that key.
-pub fn analyze_track(chroma_sequence: &[Vec<f64>]) -> (String, f64) {
+pub fn analyze_track(chroma_sequence: &[Vec<f64>]) -> (Option<Key>, f64) {
     if chroma_sequence.is_empty() {
-        return ("Unknown".to_string(), 0.0);
+        return (None, 0.0);
     }
 
     let frame_keys: Vec<usize> = chroma_sequence
@@ -93,5 +95,7 @@ pub fn analyze_track(chroma_sequence: &[Vec<f64>]) -> (String, f64) {
         .unwrap_or((0, &0.0));
     let key_root = KEY_NAMES[best_idx % 12];
     let key_mode = if best_idx < 12 { "Major" } else { "Minor" };
-    (format!("{} {}", key_root, key_mode), *best_score)
+    let key = format!("{} {}", key_root, key_mode);
+    let cam_key: Key = key_to_camelot(key.as_str()).into();
+    (Some(cam_key), *best_score)
 }
