@@ -4,4 +4,6 @@ pub enum CreateKeyError {
     InvalidLetterError,
     #[error("invalid number given")]
     InvalidNumberError,
+    #[error("invalid key string")]
+    InvalidKeyError,
 }

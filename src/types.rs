@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use crate::errors::CreateKeyError;
 
 /// A struct representing melodic key of the track
@@ -22,8 +24,10 @@ impl From<Key> for String {
     }
 }
 
-impl From<&str> for Key {
-    fn from(value: &str) -> Self {
+impl TryFrom<&str> for Key {
+    type Error = CreateKeyError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
             "8B" => Key::new(8, 'B'),
             "3B" => Key::new(3, 'B'),
@@ -36,7 +40,6 @@ impl From<&str> for Key {
             "4B" => Key::new(4, 'B'),
             "11B" => Key::new(11, 'B'),
             "6B" => Key::new(6, 'B'),
-
             "1B" => Key::new(1, 'B'),
             "5A" => Key::new(5, 'A'),
             "12A" => Key::new(12, 'A'),
@@ -50,9 +53,8 @@ impl From<&str> for Key {
             "8A" => Key::new(8, 'A'),
             "3A" => Key::new(3, 'A'),
             "10A" => Key::new(10, 'A'),
-            _ => panic!("Invalid key!"),
+            _ => Err(CreateKeyError::InvalidKeyError),
         }
-        .unwrap()
     }
 }
 
@@ -73,32 +75,32 @@ impl Key {
     }
 }
 
-pub(crate) fn key_to_camelot(key: &str) -> &str {
+pub(crate) fn key_to_camelot(key: &str) -> Option<&str> {
     match key {
-        "C Major" => "8B",
-        "C# Major" => "3B",
-        "D Major" => "10B",
-        "D# Major" => "5B",
-        "E Major" => "12B",
-        "F Major" => "7B",
-        "F# Major" => "2B",
-        "G Major" => "9B",
-        "G# Major" => "4B",
-        "A Major" => "11B",
-        "A# Major" => "6B",
-        "B Major" => "1B",
-        "C Minor" => "5A",
-        "C# Minor" => "12A",
-        "D Minor" => "7A",
-        "D# Minor" => "2A",
-        "E Minor" => "9A",
-        "F Minor" => "4A",
-        "F# Minor" => "11A",
-        "G Minor" => "6A",
-        "G# Minor" => "1A",
-        "A Minor" => "8A",
-        "A# Minor" => "3A",
-        "B Minor" => "10A",
-        _ => panic!("Incorrect key provided!"),
+        "C Major" => Some("8B"),
+        "C# Major" => Some("3B"),
+        "D Major" => Some("10B"),
+        "D# Major" => Some("5B"),
+        "E Major" => Some("12B"),
+        "F Major" => Some("7B"),
+        "F# Major" => Some("2B"),
+        "G Major" => Some("9B"),
+        "G# Major" => Some("4B"),
+        "A Major" => Some("11B"),
+        "A# Major" => Some("6B"),
+        "B Major" => Some("1B"),
+        "C Minor" => Some("5A"),
+        "C# Minor" => Some("12A"),
+        "D Minor" => Some("7A"),
+        "D# Minor" => Some("2A"),
+        "E Minor" => Some("9A"),
+        "F Minor" => Some("4A"),
+        "F# Minor" => Some("11A"),
+        "G Minor" => Some("6A"),
+        "G# Minor" => Some("1A"),
+        "A Minor" => Some("8A"),
+        "A# Minor" => Some("3A"),
+        "B Minor" => Some("10A"),
+        _ => None,
     }
 }

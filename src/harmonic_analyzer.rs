@@ -1,6 +1,8 @@
 //! Harmonic transition analyzer module
 //!
 
+use std::convert::TryFrom;
+
 use crate::types::{key_to_camelot, Key};
 const MAJOR_PROFILE: [f64; 12] = [
     6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88,
@@ -46,10 +48,30 @@ pub fn analyze_track(chroma_sequence: &[Vec<f64>]) -> (Option<Key>, f64) {
         return (None, 0.0);
     }
 
-    let frame_keys: Vec<usize> = chroma_sequence
+    let raw_frame_keys: Vec<usize> = chroma_sequence
         .iter()
         .map(|frame| get_best_frame_key(frame))
         .collect();
+
+    // Smooth frame keys with a sliding window mode to reduce per-frame noise.
+    const SMOOTH_WINDOW: usize = 5;
+    let frame_keys: Vec<usize> = (0..raw_frame_keys.len())
+        .map(|i| {
+            let start = i.saturating_sub(SMOOTH_WINDOW / 2);
+            let end = (i + SMOOTH_WINDOW / 2 + 1).min(raw_frame_keys.len());
+            let mut counts = [0usize; 24];
+            for &k in &raw_frame_keys[start..end] {
+                counts[k] += 1;
+            }
+            counts
+                .iter()
+                .enumerate()
+                .max_by_key(|&(_, c)| c)
+                .map(|(idx, _)| idx)
+                .unwrap_or(raw_frame_keys[i])
+        })
+        .collect();
+
     let mut transition_scores = vec![vec![0.0; 24]; 24];
     for i in 0..24 {
         transition_scores[i][i] = 1.0;
@@ -93,9 +115,21 @@ pub fn analyze_track(chroma_sequence: &[Vec<f64>]) -> (Option<Key>, f64) {
         .enumerate()
         .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
         .unwrap_or((0, &0.0));
+
+    let normalized_score = best_score / frame_keys.len() as f64;
+
     let key_root = KEY_NAMES[best_idx % 12];
     let key_mode = if best_idx < 12 { "Major" } else { "Minor" };
     let key = format!("{} {}", key_root, key_mode);
-    let cam_key: Key = key_to_camelot(key.as_str()).into();
-    (Some(cam_key), *best_score)
+
+    let camelot_str = match key_to_camelot(key.as_str()) {
+        Some(s) => s,
+        None => return (None, 0.0),
+    };
+    let cam_key = match Key::try_from(camelot_str) {
+        Ok(k) => k,
+        Err(_) => return (None, 0.0),
+    };
+
+    (Some(cam_key), normalized_score)
 }
