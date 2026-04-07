@@ -2,8 +2,8 @@
 
 use rustfft::{num_complex::Complex, FftPlanner};
 
-const FFT_SIZE: usize = 8192;
-const HOP_SIZE: usize = 2048;
+const FFT_SIZE: usize = 2048;
+const HOP_SIZE: usize = 512;
 
 /// Computes FFT magnitudes for every frame of the audio. Each entry is a
 /// half-spectrum of length FFT_SIZE/2+1. Call this once per audio file, then

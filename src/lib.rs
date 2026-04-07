@@ -25,6 +25,13 @@ pub fn analyze_key(file_path: &str) -> Option<Key> {
         sample_rate
     );
 
+    let (audio_buffer, sample_rate) = audio::downsample(&audio_buffer, sample_rate, 11025);
+    println!(
+        "-> Downsampled to {} samples at {} Hz",
+        audio_buffer.len(),
+        sample_rate
+    );
+
     let mut best_key: Option<Key> = None;
     let mut best_score = -1.0;
     let mut best_tuning_hz = 440.0;

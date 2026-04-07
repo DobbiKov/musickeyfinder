@@ -53,6 +53,22 @@ pub fn load_audio_file(path: &str) -> Result<(Vec<f32>, u32), Box<dyn Error>> {
     Ok((audio_buf, sample_rate))
 }
 
+/// Downsamples audio to approximately `target_rate` Hz using box-filter
+/// decimation. Returns the downsampled buffer and the actual output rate
+/// (which equals `from_rate / factor`).
+pub fn downsample(audio: &[f32], from_rate: u32, target_rate: u32) -> (Vec<f32>, u32) {
+    let factor = (from_rate / target_rate).max(1) as usize;
+    if factor == 1 {
+        return (audio.to_vec(), from_rate);
+    }
+    let downsampled: Vec<f32> = audio
+        .chunks_exact(factor)
+        .map(|chunk| chunk.iter().sum::<f32>() / factor as f32)
+        .collect();
+    let actual_rate = from_rate / factor as u32;
+    (downsampled, actual_rate)
+}
+
 fn to_mono_f32<'a>(
     buffer: &'a AudioBufferRef<'a>,
     sample_buf: &'a mut Option<SampleBuffer<f32>>,
