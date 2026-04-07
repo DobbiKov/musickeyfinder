@@ -27,7 +27,12 @@ fn pearson_correlation(x: &[f64], y: &[f64]) -> f64 {
     numerator / (x_var * y_var)
 }
 
-fn get_best_frame_key(chroma: &[f64]) -> usize {
+/// Returns None for silent (all-zero) frames so they are excluded from
+/// key classification and transition scoring.
+fn get_best_frame_key(chroma: &[f64]) -> Option<usize> {
+    if chroma.iter().all(|&v| v == 0.0) {
+        return None;
+    }
     let mut max_corr = f64::NEG_INFINITY;
     let mut best_key_idx = 0;
 
@@ -47,42 +52,27 @@ fn get_best_frame_key(chroma: &[f64]) -> usize {
             best_key_idx = i;
         }
     }
-    best_key_idx
+    Some(best_key_idx)
 }
 
-/// Returns the best key AND the confidence score for that key.
-pub fn analyze_track(chroma_sequence: &[Vec<f64>]) -> (Option<Key>, f64) {
-    if chroma_sequence.is_empty() {
-        return (None, 0.0);
-    }
-
-    let raw_frame_keys: Vec<usize> = chroma_sequence
+/// Shannon entropy weight: tonal frames (low entropy, one pitch class dominant)
+/// score higher than noisy/uniform frames (high entropy).
+fn chroma_entropy_weight(chroma: &[f64]) -> f64 {
+    const MAX_ENTROPY: f64 = 3.584962500721156; // log2(12)
+    const EPSILON: f64 = 1e-10;
+    let h: f64 = chroma
         .iter()
-        .map(|frame| get_best_frame_key(frame))
-        .collect();
+        .map(|&p| if p > 0.0 { -p * (p + EPSILON).log2() } else { 0.0 })
+        .sum();
+    (MAX_ENTROPY - h).max(0.0)
+}
 
-    // Smooth frame keys with a sliding window mode to reduce per-frame noise.
-    const SMOOTH_WINDOW: usize = 5;
-    let frame_keys: Vec<usize> = (0..raw_frame_keys.len())
-        .map(|i| {
-            let start = i.saturating_sub(SMOOTH_WINDOW / 2);
-            let end = (i + SMOOTH_WINDOW / 2 + 1).min(raw_frame_keys.len());
-            let mut counts = [0usize; 24];
-            for &k in &raw_frame_keys[start..end] {
-                counts[k] += 1;
-            }
-            counts
-                .iter()
-                .enumerate()
-                .max_by_key(|&(_, c)| c)
-                .map(|(idx, _)| idx)
-                .unwrap_or(raw_frame_keys[i])
-        })
-        .collect();
-
-    let mut transition_scores = vec![vec![0.0; 24]; 24];
+/// Builds the static 24×24 harmonic transition scoring matrix.
+/// This is independent of the audio and only needs to be computed once.
+pub fn build_transition_scores() -> Vec<Vec<f64>> {
+    let mut ts = vec![vec![0.0f64; 24]; 24];
     for i in 0..24 {
-        transition_scores[i][i] = 1.0;
+        ts[i][i] = 1.0;
         let root = i % 12;
         let is_major = i < 12;
         let tonic_maj = root;
@@ -92,31 +82,86 @@ pub fn analyze_track(chroma_sequence: &[Vec<f64>]) -> (Option<Key>, f64) {
         let subdominant_maj = (root + 5) % 12;
         let subdominant_min = (root + 5) % 12 + 12;
         if is_major {
-            transition_scores[dominant_maj][tonic_maj] = 5.0;
-            transition_scores[dominant_min][tonic_maj] = 4.0;
-            transition_scores[subdominant_maj][tonic_maj] = 2.0;
+            ts[dominant_maj][tonic_maj] = 5.0;
+            ts[dominant_min][tonic_maj] = 4.0;
+            ts[subdominant_maj][tonic_maj] = 2.0;
         } else {
-            transition_scores[dominant_min][tonic_min] = 5.0;
-            transition_scores[dominant_maj][tonic_min] = 5.0;
-            transition_scores[subdominant_min][tonic_min] = 2.0;
+            ts[dominant_min][tonic_min] = 5.0;
+            ts[dominant_maj][tonic_min] = 5.0;
+            ts[subdominant_min][tonic_min] = 2.0;
         }
+    }
+    ts
+}
+
+/// Returns the best key AND the confidence score for that key.
+pub fn analyze_track(chroma_sequence: &[Vec<f64>], transition_scores: &[Vec<f64>]) -> (Option<Key>, f64) {
+    if chroma_sequence.is_empty() {
+        return (None, 0.0);
     }
 
-    let mut global_key_scores = vec![0.0; 24];
-    for global_key_candidate in 0..24 {
-        let mut current_score = 0.0;
-        if frame_keys[0] == global_key_candidate {
-            current_score += 1.0;
-        }
-        for i in 1..frame_keys.len() {
-            let from_key = frame_keys[i - 1];
-            let to_key = frame_keys[i];
-            if to_key == global_key_candidate {
-                current_score += transition_scores[from_key][to_key];
+    // Classify each frame; silent frames yield None and are excluded from
+    // smoothing and scoring to avoid spurious cross-silence transitions.
+    let raw_frame_keys: Vec<Option<usize>> = chroma_sequence
+        .iter()
+        .map(|frame| get_best_frame_key(frame))
+        .collect();
+
+    // Smooth frame keys with a sliding window mode over non-silent frames only.
+    const SMOOTH_WINDOW: usize = 5;
+    let frame_keys: Vec<Option<usize>> = (0..raw_frame_keys.len())
+        .map(|i| {
+            let start = i.saturating_sub(SMOOTH_WINDOW / 2);
+            let end = (i + SMOOTH_WINDOW / 2 + 1).min(raw_frame_keys.len());
+            let mut counts = [0usize; 24];
+            let mut any = false;
+            for &k in &raw_frame_keys[start..end] {
+                if let Some(idx) = k {
+                    counts[idx] += 1;
+                    any = true;
+                }
             }
-        }
-        global_key_scores[global_key_candidate] = current_score;
+            if !any {
+                return None;
+            }
+            counts
+                .iter()
+                .enumerate()
+                .max_by_key(|&(_, c)| c)
+                .map(|(idx, _)| idx)
+        })
+        .collect();
+
+    // Precompute per-frame entropy weights.
+    let weights: Vec<f64> = chroma_sequence
+        .iter()
+        .map(|frame| chroma_entropy_weight(frame))
+        .collect();
+
+    let mut global_key_scores = vec![0.0f64; 24];
+    let mut prev_key: Option<usize> = None;
+    for i in 0..frame_keys.len() {
+        let Some(to_key) = frame_keys[i] else {
+            // Silent frame: reset adjacency so the next tonal frame doesn't
+            // inherit a transition score from across the silence.
+            prev_key = None;
+            continue;
+        };
+        let w = weights[i];
+        let score = match prev_key {
+            Some(from_key) => transition_scores[from_key][to_key],
+            None => 1.0,
+        };
+        global_key_scores[to_key] += score * w;
+        prev_key = Some(to_key);
     }
+
+    let weight_sum: f64 = frame_keys
+        .iter()
+        .enumerate()
+        .filter_map(|(i, k)| k.map(|_| weights[i]))
+        .sum::<f64>()
+        .max(1e-10);
 
     let (best_idx, best_score) = global_key_scores
         .iter()
@@ -124,7 +169,7 @@ pub fn analyze_track(chroma_sequence: &[Vec<f64>]) -> (Option<Key>, f64) {
         .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
         .unwrap_or((0, &0.0));
 
-    let normalized_score = best_score / frame_keys.len() as f64;
+    let normalized_score = best_score / weight_sum;
 
     let key_root = KEY_NAMES[best_idx % 12];
     let key_mode = if best_idx < 12 { "Major" } else { "Minor" };

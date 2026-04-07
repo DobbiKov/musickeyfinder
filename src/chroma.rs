@@ -62,7 +62,7 @@ pub fn magnitudes_to_chromagram_sequence(
                 let midi_pitch = 12.0 * (freq / a4_freq).log2() + 69.0;
                 if midi_pitch > 0.0 {
                     let chroma_bin = (midi_pitch.round() as i32 % 12) as usize;
-                    frame_chroma[chroma_bin] += magnitudes[k] as f64;
+                    frame_chroma[chroma_bin] += (magnitudes[k] as f64).powi(2);
                 }
             }
         }
@@ -70,6 +70,8 @@ pub fn magnitudes_to_chromagram_sequence(
         let sum: f64 = frame_chroma.iter().sum();
         if sum > 0.0 {
             chroma_sequence.push(frame_chroma.iter().map(|v| v / sum).collect());
+        } else {
+            chroma_sequence.push(vec![0.0f64; 12]);
         }
     }
 
