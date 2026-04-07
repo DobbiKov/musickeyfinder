@@ -29,6 +29,9 @@ pub fn analyze_key(file_path: &str) -> Option<Key> {
     let mut best_score = -1.0;
     let mut best_tuning_hz = 440.0;
 
+    println!("-> Computing FFT magnitudes...");
+    let frame_magnitudes = chroma::compute_frame_magnitudes(&audio_buffer);
+
     println!("-> Starting tuning analysis...");
     // Test tunings from A4=427Hz (-50 cents) to A4=453Hz (+50 cents)
     for i in -5..=5 {
@@ -36,7 +39,7 @@ pub fn analyze_key(file_path: &str) -> Option<Key> {
         let a4_freq = 440.0 * 2.0_f32.powf(cents_offset / 1200.0);
 
         let chroma_sequence =
-            chroma::compute_chromagram_sequence(&audio_buffer, sample_rate, a4_freq);
+            chroma::magnitudes_to_chromagram_sequence(&frame_magnitudes, sample_rate, a4_freq);
         if chroma_sequence.is_empty() {
             continue;
         }
