@@ -14,10 +14,22 @@ const KEY_NAMES: [&str; 12] = [
     "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
 ];
 
+fn pearson_correlation(x: &[f64], y: &[f64]) -> f64 {
+    let n = x.len() as f64;
+    let x_mean = x.iter().sum::<f64>() / n;
+    let y_mean = y.iter().sum::<f64>() / n;
+    let numerator: f64 = x.iter().zip(y.iter()).map(|(xi, yi)| (xi - x_mean) * (yi - y_mean)).sum();
+    let x_var: f64 = x.iter().map(|xi| (xi - x_mean).powi(2)).sum::<f64>().sqrt();
+    let y_var: f64 = y.iter().map(|yi| (yi - y_mean).powi(2)).sum::<f64>().sqrt();
+    if x_var == 0.0 || y_var == 0.0 {
+        return 0.0;
+    }
+    numerator / (x_var * y_var)
+}
+
 fn get_best_frame_key(chroma: &[f64]) -> usize {
-    let mut max_corr = -1.0;
+    let mut max_corr = f64::NEG_INFINITY;
     let mut best_key_idx = 0;
-    let profiles = [MAJOR_PROFILE.as_slice(), MINOR_PROFILE.as_slice()].concat();
 
     for i in 0..24 {
         let profile_root = i % 12;
@@ -29,11 +41,7 @@ fn get_best_frame_key(chroma: &[f64]) -> usize {
         };
         let mut rotated_chroma = chroma.to_vec();
         rotated_chroma.rotate_left(profile_root);
-        let corr: f64 = rotated_chroma
-            .iter()
-            .zip(profile.iter())
-            .map(|(c, p)| c * p)
-            .sum();
+        let corr = pearson_correlation(&rotated_chroma, profile);
         if corr > max_corr {
             max_corr = corr;
             best_key_idx = i;
