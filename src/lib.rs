@@ -39,6 +39,8 @@ pub fn analyze_key(file_path: &str) -> Option<Key> {
     println!("-> Computing FFT magnitudes...");
     let frame_magnitudes = chroma::compute_frame_magnitudes(&audio_buffer);
 
+    let transition_scores = harmonic_analyzer::build_transition_scores();
+
     println!("-> Starting tuning analysis...");
     // Test tunings from A4=427Hz (-50 cents) to A4=453Hz (+50 cents)
     for i in -5..=5 {
@@ -51,7 +53,7 @@ pub fn analyze_key(file_path: &str) -> Option<Key> {
             continue;
         }
 
-        let (key, score) = harmonic_analyzer::analyze_track(&chroma_sequence);
+        let (key, score) = harmonic_analyzer::analyze_track(&chroma_sequence, &transition_scores);
         let key_str = match key {
             None => "unknown".to_string(),
             Some(k) => String::from(k),
