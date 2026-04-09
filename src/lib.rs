@@ -9,6 +9,50 @@ mod errors;
 mod harmonic_analyzer;
 pub mod types;
 
+pub fn export_chroma(file_path: &str, output_path: &str) {
+    let (audio_buffer, sample_rate) = match audio::load_audio_file(file_path) {
+        Ok(result) => result,
+        Err(e) => {
+            eprintln!("Error loading audio file: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let (audio_buffer, sample_rate) = audio::downsample(&audio_buffer, sample_rate, 11025);
+    let frame_magnitudes = chroma::compute_frame_magnitudes(&audio_buffer);
+    let transition_scores = harmonic_analyzer::build_transition_scores();
+
+    let mut best_score = -1.0;
+    let mut best_chroma: Vec<Vec<f64>> = Vec::new();
+
+    for i in -5..=5 {
+        let cents_offset = i as f32 * 10.0;
+        let a4_freq = 440.0 * 2.0_f32.powf(cents_offset / 1200.0);
+        let chroma_sequence =
+            chroma::magnitudes_to_chromagram_sequence(&frame_magnitudes, sample_rate, a4_freq);
+        if chroma_sequence.is_empty() {
+            continue;
+        }
+        let (_, score) = harmonic_analyzer::analyze_track(&chroma_sequence, &transition_scores);
+        if score > best_score {
+            best_score = score;
+            best_chroma = chroma_sequence;
+        }
+    }
+
+    let mut out = String::new();
+    for frame in &best_chroma {
+        let row: Vec<String> = frame.iter().map(|v| format!("{:.8}", v)).collect();
+        out.push_str(&row.join(","));
+        out.push('\n');
+    }
+    if let Err(e) = std::fs::write(output_path, out) {
+        eprintln!("Error writing chroma file: {}", e);
+        std::process::exit(1);
+    }
+    println!("Exported {} frames to {}", best_chroma.len(), output_path);
+}
+
 pub fn analyze_key(file_path: &str) -> Option<Key> {
     println!("Analyzing file: {}", file_path);
 
