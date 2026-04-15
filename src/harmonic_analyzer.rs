@@ -5,10 +5,32 @@ use std::convert::TryFrom;
 
 use crate::types::{key_to_camelot, Key};
 const MAJOR_PROFILE: [f64; 12] = [
-    6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88,
+    6.18576717376709,
+    5.271093368530273,
+    3.1486291885375977,
+    -0.31995293498039246,
+    -0.7044875621795654,
+    -0.22531749308109283,
+    2.5953574180603027,
+    3.1163809299468994,
+    3.9606964588165283,
+    4.81988000869751,
+    5.719341278076172,
+    6.218751430511475,
 ];
 const MINOR_PROFILE: [f64; 12] = [
-    6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17,
+    5.981163024902344,
+    5.9503092765808105,
+    5.130553245544434,
+    2.968756675720215,
+    -0.572847306728363,
+    -0.7587595582008362,
+    -0.1461995393037796,
+    2.594014883041382,
+    2.8055129051208496,
+    3.714909315109253,
+    4.624205589294434,
+    5.5326457023620605,
 ];
 const KEY_NAMES: [&str; 12] = [
     "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
@@ -18,7 +40,11 @@ fn pearson_correlation(x: &[f64], y: &[f64]) -> f64 {
     let n = x.len() as f64;
     let x_mean = x.iter().sum::<f64>() / n;
     let y_mean = y.iter().sum::<f64>() / n;
-    let numerator: f64 = x.iter().zip(y.iter()).map(|(xi, yi)| (xi - x_mean) * (yi - y_mean)).sum();
+    let numerator: f64 = x
+        .iter()
+        .zip(y.iter())
+        .map(|(xi, yi)| (xi - x_mean) * (yi - y_mean))
+        .sum();
     let x_var: f64 = x.iter().map(|xi| (xi - x_mean).powi(2)).sum::<f64>().sqrt();
     let y_var: f64 = y.iter().map(|yi| (yi - y_mean).powi(2)).sum::<f64>().sqrt();
     if x_var == 0.0 || y_var == 0.0 {
@@ -62,7 +88,13 @@ fn chroma_entropy_weight(chroma: &[f64]) -> f64 {
     const EPSILON: f64 = 1e-10;
     let h: f64 = chroma
         .iter()
-        .map(|&p| if p > 0.0 { -p * (p + EPSILON).log2() } else { 0.0 })
+        .map(|&p| {
+            if p > 0.0 {
+                -p * (p + EPSILON).log2()
+            } else {
+                0.0
+            }
+        })
         .sum();
     (MAX_ENTROPY - h).max(0.0)
 }
@@ -95,7 +127,10 @@ pub fn build_transition_scores() -> Vec<Vec<f64>> {
 }
 
 /// Returns the best key AND the confidence score for that key.
-pub fn analyze_track(chroma_sequence: &[Vec<f64>], transition_scores: &[Vec<f64>]) -> (Option<Key>, f64) {
+pub fn analyze_track(
+    chroma_sequence: &[Vec<f64>],
+    transition_scores: &[Vec<f64>],
+) -> (Option<Key>, f64) {
     if chroma_sequence.is_empty() {
         return (None, 0.0);
     }
